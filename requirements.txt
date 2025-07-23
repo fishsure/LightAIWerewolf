@@ -1,0 +1,8 @@
+# requirements.txt
+# Basic dependencies for the Werewolf LLM project
+
+# Python 3.7+
+
+# No external packages required for the mock version
+# If you want to use a real LLM API, add the relevant SDK, e.g. openai
+# openai>=1.0.0 
