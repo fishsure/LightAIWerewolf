@@ -152,6 +152,46 @@ class GameEngine:
             else:
                 return "You are a player in the game. Please act according to your role and the game rules."
 
+    def hunter_shoot(self, hunter: LLMPlayerAgent):
+        """
+        猎人被淘汰时触发，选择带走一名玩家。
+        """
+        # 获取可选目标（存活且不是自己且不是已死的猎人）
+        candidates = [p.player_id for p in self.get_alive_players() if p.player_id != hunter.player_id]
+        if not candidates:
+            return None
+        # 生成prompt
+        if self.language == 'zh':
+            prompt = (
+                "你是猎人，被淘汰时可以带走一名玩家。存活玩家有：{candidates}。请选择要带走的玩家id，只返回数字。"
+            )
+        else:
+            prompt = (
+                "You are the Hunter and have been eliminated. You can choose one player to shoot and take down with you. "
+                "Alive players: {candidates}. Return the player id only."
+            )
+        prompt_str = prompt.format(candidates=candidates)
+        response = hunter.make_speech(self.history, prompt_str)
+        self.logger.log_prompt(hunter.player_id, self.round, 'hunter_shoot', prompt_str, response)
+        # 解析目标
+        try:
+            target_id = int(re.findall(r'\d+', response)[0])
+        except Exception:
+            target_id = candidates[0]  # fallback
+        if target_id in candidates:
+            for player in self.players:
+                if player.player_id == target_id:
+                    player.is_alive = False
+            # 记录日志
+            log = {
+                "round": self.round,
+                "phase": "hunter_shoot",
+                "hunter": hunter.player_id,
+                "target": target_id
+            }
+            self.logger.logs.append(log)
+        return target_id
+
     def night_phase(self):
         """
         夜晚阶段，狼人杀人，预言家查验等。
@@ -245,6 +285,7 @@ class GameEngine:
         # 结算死亡
         killed = None
         poisoned = None
+        hunter_to_shoot = []  # 记录夜晚被杀的猎人
         if not witch_save:
             killed = wolf_target
         if witch_poison_id is not None:
@@ -252,11 +293,24 @@ class GameEngine:
             # 立即死亡
             for player in self.players:
                 if player.player_id == poisoned:
-                    player.is_alive = False
+                    # 猎人被毒死
+                    if player.role == Role.HUNTER and player.is_alive:
+                        player.is_alive = False
+                        hunter_to_shoot.append(player)
+                    else:
+                        player.is_alive = False
         if killed is not None:
             for player in self.players:
                 if player.player_id == killed:
-                    player.is_alive = False
+                    # 猎人被狼杀
+                    if player.role == Role.HUNTER and player.is_alive:
+                        player.is_alive = False
+                        hunter_to_shoot.append(player)
+                    else:
+                        player.is_alive = False
+        # 处理猎人开枪
+        for hunter in hunter_to_shoot:
+            self.hunter_shoot(hunter)
         # 日志
         log = {
             "round": self.round,
@@ -361,9 +415,18 @@ class GameEngine:
         for v in votes.values():
             vote_count[v] = vote_count.get(v, 0) + 1
         eliminated = max(vote_count, key=vote_count.get)
+        hunter_to_shoot = []  # 记录白天被淘汰的猎人
         for player in self.players:
             if player.player_id == eliminated:
-                player.is_alive = False
+                # 猎人白天被票死
+                if player.role == Role.HUNTER and player.is_alive:
+                    player.is_alive = False
+                    hunter_to_shoot.append(player)
+                else:
+                    player.is_alive = False
+        # 处理猎人开枪
+        for hunter in hunter_to_shoot:
+            self.hunter_shoot(hunter)
         log_votes = {
             "round": self.round,
             "phase": "day_vote",
