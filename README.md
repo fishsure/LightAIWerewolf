@@ -1,0 +1,2 @@
+# LightAIWerewolf
+AI Werewolf
