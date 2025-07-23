@@ -9,7 +9,7 @@ This project simulates the classic social deduction game "Werewolf" using LLM (L
 - `player_agent.py` - Player and LLM agent logic
 - `roles.py` - Role definitions
 - `logger.py` - Structured game logging
-- `llm_api.py` - LLM API interface (mocked, can be replaced with real API)
+- `llm_api.py` - LLM API interface (自行修改base_url和api_key)
 - `requirements.txt` - Dependencies
 - `README.md` - Project documentation
 
